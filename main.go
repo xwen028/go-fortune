@@ -163,4 +163,31 @@ func main() {
 	if err := r.Run(fmt.Sprintf("0.0.0.0:%d", port)); nil != err {
 		log.Panicf("Cannot start server. %v\n", err)
 	}
+
+	r.POST("/api/fortune", addFortune)
+
+}
+
+// Handle POST requests to add new fortunes.
+func addFortune(c *gin.Context) {
+	fortune := c.PostForm("fortune")
+	if fortune == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Fortune cannot be empty"})
+		return
+	}
+
+	// Append the new fortune to the fortune file
+	file, err := os.OpenFile(defaultFortune(), os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error opening fortune file: %v", err)})
+		return
+	}
+	defer file.Close()
+
+	if _, err := fmt.Fprintf(file, "%s\n", fortune); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error writing to fortune file: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "Fortune added successfully"})
 }
