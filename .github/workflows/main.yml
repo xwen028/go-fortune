@@ -1,0 +1,32 @@
+name: Trivy Scan on Release Branches
+
+on:
+  push:
+    branches:
+      - 'release/v[0-9]+\.[0-9]+'
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v3
+
+      - name: Set up Trivy
+        run: |  
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Perform Trivy Scan
+        run: trivy fs --severity HIGH --format table > trivy-report.txt
+
+      - name: Send Trivy Scan Report to Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          channel-id: 'C06UB2DHPC4'
+          text: "Trivy Scan Report for Commit ${{ github.sha }}"
+          attachments: '[{"text": "$(cat trivy-report.txt)"}]'
