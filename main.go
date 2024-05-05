@@ -17,16 +17,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Constants for environment variables, default file paths, and query parameters.
 const (
 	FORTUNE              = "FORTUNE"
 	PORT                 = "PORT"
 	PARAM_NUM_FORTUNE    = "count"
 	DEFAULT_FORTUNE_FILE = "./fortune.txt"
-	DEFAULT_STATIC_DIR = "./static"
+	DEFAULT_STATIC_DIR   = "./static"
 	DEFAULT_PORT         = 3000
 	DEFAULT_NUM_FORTUNE  = "1"
 )
 
+// Read fortunes from a file and returns them as a slice of strings.
 func loadFortunes(path string) []string {
 	buff, err := ioutil.ReadFile(path)
 	if nil != err {
@@ -36,12 +38,14 @@ func loadFortunes(path string) []string {
 	return lines[:len(lines)-1]
 }
 
+// Check if the static directory exists.
 func checkStaticAsset(path string) {
 	if _, err := os.Stat(path); nil != err {
 		log.Fatalf("Static directory '%s' error : %s ", path, err)
 	}
 }
 
+// Return the default fortune file path.
 func defaultFortune() string {
 	value, present := os.LookupEnv(FORTUNE)
 	if present {
@@ -50,6 +54,7 @@ func defaultFortune() string {
 	return DEFAULT_FORTUNE_FILE
 }
 
+// Return the default server port.
 func defaultPort() (int, error) {
 	value, present := os.LookupEnv(PORT)
 	if present {
@@ -58,6 +63,7 @@ func defaultPort() (int, error) {
 	return DEFAULT_PORT, nil
 }
 
+// Return a random selection of fortunes from the given slice.
 func getFortunes(fortune []string, count int) []string {
 	idx := rand.Perm(len(fortune))[:count]
 	f := make([]string, count)
@@ -67,9 +73,9 @@ func getFortunes(fortune []string, count int) []string {
 	return f
 }
 
+// Return a handler function for serving fortune API requests.
 func mkHandler(fortunes []string) func(*gin.Context) {
 	return func(c *gin.Context) {
-
 		count, err := strconv.Atoi(c.DefaultQuery(PARAM_NUM_FORTUNE, DEFAULT_NUM_FORTUNE))
 		if nil != err {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("%v", err)})
@@ -85,20 +91,22 @@ func mkHandler(fortunes []string) func(*gin.Context) {
 	}
 }
 
+// Return a handler function for serving MVC requests.
 func mkMVCHandler(fortunes []string) func(*gin.Context) {
 	return func(c *gin.Context) {
 		f := getFortunes(fortunes, 1)
-		c.HTML(http.StatusOK, "index", gin.H{ "fortuneText": f[0] })
+		c.HTML(http.StatusOK, "index", gin.H{"fortuneText": f[0]})
 	}
 }
 
+// Return the server health status.
 func healthz(c *gin.Context) {
 	t, _ := time.Now().MarshalText()
 	c.JSON(http.StatusOK, gin.H{"timestamp": string(t)})
 }
 
+// "notFound" handles 404 requests.
 func notFound(c *gin.Context) {
-
 	if strings.Contains(c.GetHeader("Accept"), "text/html") {
 		c.Redirect(http.StatusPermanentRedirect, "/static/404.html")
 		return
@@ -112,7 +120,6 @@ func notFound(c *gin.Context) {
 }
 
 func main() {
-
 	var fortuneFile string
 	var port int
 	var staticDir string
@@ -140,18 +147,20 @@ func main() {
 
 	r.HTMLRender = ginview.Default()
 
-	r.GET("/", mkMVCHandler(fortunes))
-	r.GET("/api/fortune", mkHandler(fortunes))
+	// Define routes.
+	r.GET("/", mkMVCHandler(fortunes))         // MVC handler
+	r.GET("/api/fortune", mkHandler(fortunes)) // API handler
+	r.GET("/healthz", healthz)                  // Health check endpoint
 
-	r.GET("/healthz", healthz)
-
+	// Serve static files.
 	r.Use(static.Serve("/static", static.LocalFile(staticDir, true)))
 
+	// Handle 404.
 	r.Use(notFound)
 
+	// Start the server.
 	log.Printf("Starting server on port %d\n", port)
 	if err := r.Run(fmt.Sprintf("0.0.0.0:%d", port)); nil != err {
 		log.Panicf("Cannot start server. %v\n", err)
 	}
-
 }
