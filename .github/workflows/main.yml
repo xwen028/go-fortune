@@ -1,0 +1,13 @@
+name: Check Branch
+on:
+    push:
+        branches:
+          - 'release/v[0-9]+.[0-9]+'
+jobs:
+    hello_world:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Git branch name
+              uses: EthanSK/git-branch-name-action@v1
+            - name : Echo the branch name
+              run: echo "${GIT_BRANCH_NAME}"
