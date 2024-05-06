@@ -1,4 +1,4 @@
-name: build and push container
+name: Build and Push
 on:
     push:
         branches:
@@ -29,7 +29,7 @@ jobs:
         exit-code: '1'
         ignore-unfixed: true
         vuln-type: 'os,library'
-        severity: 'CRITICAL'
+        severity: 'CRITICAL.HIGH'
         output: 'trivy-results.txt'
 
     - name: send message to slack
