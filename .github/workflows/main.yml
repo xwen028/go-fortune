@@ -6,7 +6,7 @@ on:
 env:
   ifVulnerable: false
 jobs:
-    myCI:
+    hello_world:
         runs-on: ubuntu-latest
         steps:
           - name: checkout code
