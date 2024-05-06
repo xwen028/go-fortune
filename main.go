@@ -165,6 +165,7 @@ func main() {
 	}
 
 	r.POST("/api/fortune", addFortune)
+	r.DELETE("/api/fortune/:index", deleteFortune)
 
 }
 
@@ -190,4 +191,33 @@ func addFortune(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Fortune added successfully"})
+}
+
+// deleteFortune handles DELETE requests to delete a fortune by its index.
+func deleteFortune(c *gin.Context) {
+    index, err := strconv.Atoi(c.Param("index"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid index"})
+        return
+    }
+
+    // Load existing fortunes.
+    fortunes := loadFortunes(defaultFortune())
+
+    if index < 0 || index >= len(fortunes) {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Index out of range"})
+        return
+    }
+
+    // Remove the fortune at the specified index.
+    fortunes = append(fortunes[:index], fortunes[index+1:]...)
+
+    // Write the updated fortunes back to the file.
+    err = ioutil.WriteFile(defaultFortune(), []byte(strings.Join(fortunes, "\n")+"\n"), 0644)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error writing to fortune file: %v", err)})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Fortune deleted successfully"})
 }

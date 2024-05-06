@@ -1,13 +1,116 @@
-name: Check Branch
+name: Trivy scan with severity set to HIGH
 on:
     push:
         branches:
           - 'release/v[0-9]+.[0-9]+'
+
+env:
+  ifVulnerable: false
 jobs:
-    hello_world:
+    stopWorkflow:
+      runs-on: ubuntu-latest
+      if: ${{ startsWith(github.event.head_commit.message, '#NORUN') }}
+      steps:
+        - name: Terminate
+          run: exit 0
+    Pipeline:
         runs-on: ubuntu-latest
         steps:
-            - name: Git branch name
-              uses: EthanSK/git-branch-name-action@v1
-            - name : Echo the branch name
-              run: echo "${GIT_BRANCH_NAME}"
+          - name: checkout code
+            uses: actions/checkout@v4
+          - name: Build an image from Dockerfile
+            run: |
+              docker build -t docker.io/my-organization/my-app:${{github.sha}} .
+          - name: Run Trivy vulnerability scanner
+            id: trivy
+            uses: aquasecurity/trivy-action@master
+            with:
+              image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
+              format: 'table'
+              exit-code: '0'
+              ignore-unfixed: true
+              vuln-type: 'os,library'
+              severity: 'CRITICAL,HIGH'
+              output: 'trivy-results.txt'
+          - name: Check Trivy results
+            run: |
+              if grep -q "CRITICAL" trivy-results.txt; then
+                echo "ifVulnerable=true" >> $GITHUB_ENV                
+                cat trivy-results.txt
+              fi
+          - name: Vulnerability Found
+            if: ${{env.ifVulnerable == 'true'}}
+            id: notify
+            uses: slackapi/slack-github-action@v1.26.0
+            with:
+              payload: |
+                {
+                  "text": "e1221870",
+                  "blocks": 
+                    [
+                      {
+                        "type": "header",
+                        "text": {
+                          "type": "plain_text",
+                          "text": "https://github.com/${{github.repository}}"
+                        }
+                      },
+                      {
+                        "type": "section",
+                        "fields": [                        
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Ref:*\n${{github.ref}}"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Event:*\n${{github.event_name}}"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Actions URL:*\n<https://github.com/${{github.repository}}/CICD-Assignment>"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Commit:*\n<https://github.com/${{github.repository}}/commit/${{github.sha}}|CICD-Commit>"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Scan Failed:*\nFailed trivy scan, see upload report."
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Name:*\n果丹皮"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Metriculation:*\nAAAAAAAAA"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Email:*\nAAAAA@u.nus.edu"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Git:*\nhttps://github.com/xwen028/go-fortune"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Image:*\nnot yet"
+                          }
+                        ]
+                      }
+                    ]
+                }
+            env:
+              SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+              SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+          - name: Upload the report to slack
+            if: ${{env.ifVulnerable == 'true'}}
+            id: upload
+            uses: MeilCli/slack-upload-file@v3
+            with:
+              slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
+              channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
+              file_path: 'trivy-results.txt'
+              initial_comment: 'post by 果丹皮, AAAAAAAAA'
