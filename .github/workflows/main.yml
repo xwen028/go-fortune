@@ -1,116 +1,114 @@
-name: Trivy scan with severity set to HIGH
+name: build and push container
 on:
     push:
         branches:
           - 'release/v[0-9]+.[0-9]+'
 
-env:
-  ifVulnerable: false
 jobs:
-    stopWorkflow:
-      runs-on: ubuntu-latest
-      if: ${{ startsWith(github.event.head_commit.message, '#NORUN') }}
-      steps:
-        - name: Terminate
-          run: exit 0
-    Pipeline:
-        runs-on: ubuntu-latest
-        steps:
-          - name: checkout code
-            uses: actions/checkout@v4
-          - name: Build an image from Dockerfile
-            run: |
-              docker build -t docker.io/my-organization/my-app:${{github.sha}} .
-          - name: Run Trivy vulnerability scanner
-            id: trivy
-            uses: aquasecurity/trivy-action@master
-            with:
-              image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
-              format: 'table'
-              exit-code: '0'
-              ignore-unfixed: true
-              vuln-type: 'os,library'
-              severity: 'CRITICAL,HIGH'
-              output: 'trivy-results.txt'
-          - name: Check Trivy results
-            run: |
-              if grep -q "CRITICAL" trivy-results.txt; then
-                echo "ifVulnerable=true" >> $GITHUB_ENV                
-                cat trivy-results.txt
-              fi
-          - name: Vulnerability Found
-            if: ${{env.ifVulnerable == 'true'}}
-            id: notify
-            uses: slackapi/slack-github-action@v1.26.0
-            with:
-              payload: |
-                {
-                  "text": "e1221870",
-                  "blocks": 
-                    [
-                      {
-                        "type": "header",
-                        "text": {
-                          "type": "plain_text",
-                          "text": "https://github.com/${{github.repository}}"
-                        }
-                      },
-                      {
-                        "type": "section",
-                        "fields": [                        
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Ref:*\n${{github.ref}}"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Event:*\n${{github.event_name}}"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Actions URL:*\n<https://github.com/${{github.repository}}/CICD-Assignment>"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Commit:*\n<https://github.com/${{github.repository}}/commit/${{github.sha}}|CICD-Commit>"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Scan Failed:*\nFailed trivy scan, see upload report."
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Name:*\n果丹皮"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Metriculation:*\nAAAAAAAAA"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Email:*\nAAAAA@u.nus.edu"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Git:*\nhttps://github.com/xwen028/go-fortune"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Image:*\nnot yet"
-                          }
-                        ]
-                      }
-                    ]
-                }
-            env:
-              SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-              SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-          - name: Upload the report to slack
-            if: ${{env.ifVulnerable == 'true'}}
-            id: upload
-            uses: MeilCli/slack-upload-file@v3
-            with:
-              slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
-              channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
-              file_path: 'trivy-results.txt'
-              initial_comment: 'post by 果丹皮, AAAAAAAAA'
+  Pipeline:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      id: checkout_code
+      uses: actions/checkout@v2
+      
+    - name: Run Trivy Vulnerability Scan
+      id: Run_Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL'
+        output: 'trivy-results.txt'
+
+    - name: send message to slack
+      id: send_message_to_slack
+      if: always() && (steps.Run_Trivy.outcome == 'failure')
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_MESSAGE: "Failed Trivy scan, see uploaded report."
+        
+    - name: Send GitHub action trigger data to Slack
+      id: send_to_slack
+      if: always() && (steps.Run_Trivy.outcome == 'failure')
+      uses: adrey/slack-file-upload-action@master
+      with:
+        token: ${{secrets.SLACK_BOT_TOKEN}}
+        path: trivy-results.txt
+        channel: ${{secrets.SLACK_CHANNEL_ID}}
+
+    - name: Set up QEMU
+      id: set_up_QEMU
+      uses: docker/setup-qemu-action@v3
+      
+    - name: Set up Docker Buildx
+      id: set_up_Docker_Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Docker Hub
+      id: login_to_Docker_Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and push
+      id: build_and_push
+      uses: docker/build-push-action@v5
+      with:
+          push: true
+          tags: xwen028/go-fortune:latest
+
+    - name: Install Cosign
+      id: install_Cosign
+      uses: sigstore/cosign-installer@v3.5.0
+
+    - name: Check install
+      id: check_install
+      run: cosign version
+      
+    - name: Sign the images with GitHub OIDC Token
+      id: sign_image_w_GitHub_Token
+      env:
+        DIGEST: ${{ steps.build_and_push.outputs.digest }}
+        TAGS: xwen028/go-fortune:latest
+      run: cosign sign --yes "${TAGS}@${DIGEST}"
+  
+    - name: Upload file to Slack Success
+      id: upload_file_to_slack_success
+      if: always() && (steps.Run_Trivy.outcome == 'success')
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_MESSAGE: "
+          *Image build & signed*\n
+          *Name:* WEN XINGDI\n
+          *Matriculation:* A0286058U\n
+          *Email:* e1221870@u.nus.edu\n
+          *Git:* https://github.com/xwen028/go-fortune\n
+          *Docker:* https://hub.docker.com/r/xwen028/go-fortune"
+    
+    - name: check commit message
+      id: check_commit_message
+      if: always() && (steps.Run_Trivy.outcome == 'success')
+      run: |
+        COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
+        if [[ "$COMMIT_MESSAGE" == "#NORUN"* ]]; then
+            echo "Commit message starts with #NORUN. Skipping the workflow."
+            exit 1
+        else
+            echo "Commit message does not start with #NORUN. Continuing with the workflow."
+            exit 0
+        fi
