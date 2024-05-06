@@ -1,4 +1,4 @@
-name: Check Branch
+name: Trivy Scan on Release Branches
 on:
     push:
         branches:
