@@ -1,4 +1,4 @@
-name: Trivy Scan on Release Branches
+name: Trivy scan with severity set to HIGH
 on:
     push:
         branches:
@@ -6,7 +6,7 @@ on:
 env:
   ifVulnerable: false
 jobs:
-    hello_world:
+    Check_Branch:
         runs-on: ubuntu-latest
         steps:
           - name: checkout code
@@ -38,7 +38,34 @@ jobs:
             with:
               payload: |
                 {
-                  "text":"text"
+                  "text": "e1221870",
+                  "blocks": 
+                    [
+                      {
+                        "type": "header",
+                        "text": {
+                          "type": "plain_text",
+                          "text": "New request"
+                        }
+                      },
+                      {
+                        "type": "section",
+                        "fields": [
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Ref:*\n${{github.ref}}"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Event:*\n${{github.event_name}}"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Actions URL:*\n<https://github.com/xwen028/go-fortune>"
+                          }
+                        ]
+                      }
+                    ]
                 }
             env:
               SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
